@@ -1,0 +1,40 @@
+# 환경변수 (절대 커밋 금지)
+.env
+.env.local
+.env.production
+
+# 생성 파일
+outputs/
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv/
+*.egg-info/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# n8n 데이터 (환경별 다름)
+n8n/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker 볼륨 데이터
+docker-data/

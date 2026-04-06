@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Malgun Gothic', '맑은 고딕', '나눔고딕', sans-serif;
+    font-size: 10pt;
+    line-height: 1.6;
+    color: #111;
+  }
+  h1 {
+    text-align: center;
+    font-size: 18pt;
+    font-weight: bold;
+    margin-bottom: 4mm;
+    letter-spacing: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 9pt;
+    color: #555;
+    margin-bottom: 8mm;
+  }
+  .section-title {
+    background-color: #1a1a2e;
+    color: white;
+    font-size: 10pt;
+    font-weight: bold;
+    padding: 3mm 4mm;
+    margin: 5mm 0 3mm 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 3mm;
+  }
+  table th {
+    background-color: #f0f0f0;
+    font-weight: bold;
+    padding: 2mm 3mm;
+    border: 0.5px solid #aaa;
+    width: 30%;
+    text-align: left;
+    vertical-align: top;
+  }
+  table td {
+    padding: 2mm 3mm;
+    border: 0.5px solid #aaa;
+    vertical-align: top;
+  }
+  .clause-box {
+    border: 0.5px solid #aaa;
+    padding: 3mm 4mm;
+    margin-bottom: 3mm;
+    background: #fafafa;
+  }
+  .clause-title {
+    font-weight: bold;
+    margin-bottom: 1mm;
+  }
+  .highlight {
+    background-color: #fff3cd;
+    padding: 1mm 2mm;
+  }
+  .signature-section {
+    margin-top: 10mm;
+    page-break-inside: avoid;
+  }
+  .signature-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8mm;
+  }
+  .signature-block {
+    width: 48%;
+    border: 0.5px solid #aaa;
+    padding: 3mm;
+  }
+  .signature-block table th {
+    width: 35%;
+  }
+  .seal-area {
+    display: inline-block;
+    border: 1px solid #aaa;
+    width: 20mm;
+    height: 20mm;
+    text-align: center;
+    line-height: 20mm;
+    font-size: 8pt;
+    color: #aaa;
+    float: right;
+    margin-top: -15mm;
+  }
+  .date-line {
+    text-align: center;
+    font-size: 11pt;
+    font-weight: bold;
+    margin: 8mm 0 5mm 0;
+  }
+  .notice {
+    font-size: 8pt;
+    color: #555;
+    border-top: 1px solid #ccc;
+    padding-top: 3mm;
+    margin-top: 5mm;
+  }
+  .amount { font-weight: bold; }
+  .underline { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>부동산 임대차 계약서</h1>
+<p class="subtitle">임대인과 임차인은 아래와 같이 부동산 임대차 계약을 체결한다.</p>
+
+<!-- 부동산 표시 -->
+<div class="section-title">■ 부동산의 표시</div>
+<table>
+  <tr>
+    <th>소재지</th>
+    <td colspan="3">{{ property_address }}</td>
+  </tr>
+  <tr>
+    <th>토지</th>
+    <td>지목: {{ land_category | default('대') }}</td>
+    <td>면적: {{ land_area | default('-') }} ㎡</td>
+    <td></td>
+  </tr>
+  <tr>
+    <th>건물</th>
+    <td>구조/용도: {{ building_structure | default('철근콘크리트/주거용') }}</td>
+    <td colspan="2">면적: {{ building_area | default('-') }} ㎡</td>
+  </tr>
+  <tr>
+    <th>임대할 부분</th>
+    <td colspan="3">{{ lease_area | default('위 건물 전부') }}</td>
+  </tr>
+</table>
+
+<!-- 계약 내용 -->
+<div class="section-title">■ 계약 내용</div>
+<table>
+  <tr>
+    <th>보증금</th>
+    <td>
+      금 <span class="amount">{{ deposit_krw }}</span> 정<br>
+      <small>({{ deposit_amount | default('') }})</small>
+    </td>
+  </tr>
+  {% if contract_type == 'monthly' %}
+  <tr>
+    <th>월세</th>
+    <td>
+      금 <span class="amount">{{ monthly_rent_krw }}</span> 정 (매월 {{ rent_payment_day | default('말일') }}까지 지급)
+    </td>
+  </tr>
+  {% endif %}
+  <tr>
+    <th>계약 기간</th>
+    <td>{{ start_date }} ~ {{ end_date }} ({{ period_months | default('24') }}개월)</td>
+  </tr>
+</table>
+
+<!-- 계약 조항 -->
+<div class="section-title">■ 계약 조항</div>
+
+<div class="clause-box">
+  <div class="clause-title">제1조 (목적)</div>
+  위 부동산의 임대인과 임차인 합의하에 임차보증금 및 차임을 아래와 같이 지급하기로 한다.
+</div>
+
+<div class="clause-box">
+  <div class="clause-title">제2조 (보증금과 차임)</div>
+  임차인은 위 부동산을 임차하기 위하여 보증금을 아래와 같이 지급하기로 한다.<br>
+  • 계약금: <span class="amount">{{ contract_deposit_krw | default('금 ' + (deposit_krw|replace('금 ', '')|replace(' 정', '')|int // 10 | string) + '원 정') }}</span> — 계약 시 지급<br>
+  • 중도금: <span class="amount">{{ interim_deposit_krw | default('없음') }}</span><br>
+  • 잔금: <span class="amount">{{ remaining_deposit_krw | default('잔액 전부') }}</span> — {{ start_date }} 지급
+</div>
+
+<div class="clause-box">
+  <div class="clause-title">제3조 (임대차 기간)</div>
+  임대인은 위 부동산을 임대차 목적대로 사용·수익할 수 있는 상태로 {{ start_date }}까지 임차인에게 인도하며, 임대차 기간은 인도일로부터 {{ end_date }}까지로 한다.
+</div>
+
+<div class="clause-box">
+  <div class="clause-title">제4조 (용도 변경 및 전대 등의 금지)</div>
+  임차인은 임대인의 동의 없이 위 부동산의 용도나 구조를 변경하거나, 전대·임차권 양도 또는 담보 제공을 하지 못하며, 임대차 목적 이외의 용도로 사용하지 못한다.
+</div>
+
+<div class="clause-box">
+  <div class="clause-title">제5조 (계약의 해제)</div>
+  임차인이 임대인에게 중도금(중도금이 없을 때는 잔금)을 지급하기 전까지, 임대인은 계약금의 배액을 상환하고, 임차인은 계약금을 포기하고 이 계약을 해제할 수 있다.
+</div>
+
+<div class="clause-box">
+  <div class="clause-title">제6조 (채무불이행과 손해배상)</div>
+  임대인 또는 임차인이 본 계약상의 내용에 대하여 불이행이 있을 경우, 그 상대방은 불이행한 자에 대하여 서면으로 최고하고 계약을 해제할 수 있다. 그리고 계약 당사자는 계약 해제에 따른 손해배상을 각각 상대방에게 청구할 수 있다.
+</div>
+
+{% if special_terms %}
+<div class="clause-box">
+  <div class="clause-title">특약 사항</div>
+  {{ special_terms | replace('\n', '<br>') }}
+</div>
+{% endif %}
+
+<!-- 날짜 -->
+<div class="date-line">{{ contract_date }}</div>
+
+<!-- 서명 -->
+<div class="signature-section">
+  <div class="signature-row">
+    <div class="signature-block">
+      <strong>【임 대 인】</strong>
+      <table style="margin-top: 3mm;">
+        <tr><th>주소</th><td>{{ landlord_address | default('') }}</td></tr>
+        <tr><th>성명</th><td>{{ landlord_name }} <span class="seal-area">인</span></td></tr>
+        <tr><th>주민등록번호</th><td>{{ landlord_id | default('') }}</td></tr>
+        <tr><th>전화</th><td>{{ landlord_phone | default('') }}</td></tr>
+      </table>
+    </div>
+    <div class="signature-block">
+      <strong>【임 차 인】</strong>
+      <table style="margin-top: 3mm;">
+        <tr><th>주소</th><td>{{ tenant_address | default('') }}</td></tr>
+        <tr><th>성명</th><td>{{ tenant_name }} <span class="seal-area">인</span></td></tr>
+        <tr><th>주민등록번호</th><td>{{ tenant_id | default('') }}</td></tr>
+        <tr><th>전화</th><td>{{ tenant_phone | default('') }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  {% if agent_name %}
+  <div style="border: 0.5px solid #aaa; padding: 3mm; margin-top: 3mm;">
+    <strong>【공인중개사】</strong>
+    <table style="margin-top: 2mm;">
+      <tr><th>사무소 명칭</th><td>{{ agent_office | default('') }}</td><th>등록번호</th><td>{{ agent_reg_no | default('') }}</td></tr>
+      <tr><th>소재지</th><td>{{ agent_office_address | default('') }}</td><th>전화</th><td>{{ agent_phone | default('') }}</td></tr>
+      <tr><th>대표</th><td>{{ agent_name }} <span class="seal-area">인</span></td><th></th><td></td></tr>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="notice">
+  ※ 본 계약서는 「주택임대차보호법」 및 관련 법령에 따라 작성된 표준 계약서 형식을 참고하여 작성되었습니다.
+  실제 법적 효력은 당사자 간 서명·날인 및 관련 법령의 요건 충족 여부에 따라 달라질 수 있으므로, 중요한 계약 시에는 전문가의 검토를 받으시기 바랍니다.
+</div>
+
+</body>
+</html>

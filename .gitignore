@@ -1,0 +1,40 @@
+# DocFlow AI
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# ── 환경변수 (절대 커밋 금지) ──
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+
+# ── 파일 저장소 ──
+outputs/
+uploads/
+
+# ── Node / Next.js ──
+node_modules/
+.next/
+out/
+.npm
+
+# ── 기타 ──
+n8n_data/
+.uv/
+.DS_Store
+*.pem
+*.tsbuildinfo
+.vercel

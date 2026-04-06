@@ -1,4 +1,3 @@
-from playwright.async_api import async_playwright
 from pathlib import Path
 import io
 import asyncio
@@ -6,7 +5,11 @@ import os
 
 async def export_to_pdf(slides_dir: Path, output_path: Path) -> None:
     """HTML 슬라이드 목록을 단일 PDF로 병합"""
-    from pypdf import PdfWriter, PdfReader
+    try:
+        from playwright.async_api import async_playwright
+        from pypdf import PdfWriter, PdfReader
+    except ImportError as e:
+        raise RuntimeError(f"PDF 내보내기에 필요한 패키지가 없습니다: {e}") from e
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(args=["--no-sandbox"])
@@ -52,8 +55,12 @@ async def export_to_pdf(slides_dir: Path, output_path: Path) -> None:
 
 async def export_to_pptx(slides_dir: Path, output_path: Path) -> None:
     """HTML 슬라이드를 스크린샷으로 캡처해 PPTX 생성"""
-    from pptx import Presentation
-    from pptx.util import Inches
+    try:
+        from playwright.async_api import async_playwright
+        from pptx import Presentation
+        from pptx.util import Inches
+    except ImportError as e:
+        raise RuntimeError(f"PPTX 내보내기에 필요한 패키지가 없습니다: {e}") from e
 
     prs = Presentation()
     prs.slide_width  = Inches(13.33)

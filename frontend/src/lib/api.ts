@@ -1,7 +1,7 @@
 // DocFlow AI API 클라이언트
 
 import { getSession } from "next-auth/react";
-import { DocumentResponse, GenerateRequest } from "./types";
+import { DocumentResponse, FileInfo, GenerateRequest } from "./types";
 
 // Next.js rewrites(/api/* → FastAPI)를 활용하여 상대경로 사용
 // NEXT_PUBLIC_API_URL은 직접 다운로드 URL 등 절대경로가 필요한 경우에만 사용
@@ -47,7 +47,7 @@ export async function generateDocument(
 export async function generateDocumentStream(
   request: GenerateRequest,
   onProgress: (step: string, message: string) => void,
-  onComplete: (files: DocumentResponse["files"]) => void,
+  onComplete: (files: FileInfo[]) => void,
   onError: (message: string) => void
 ): Promise<void> {
   const session = await getSession();

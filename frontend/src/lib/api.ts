@@ -1,7 +1,7 @@
 // DocFlow AI API 클라이언트
 
 import { getSession } from "next-auth/react";
-import { DocumentResponse, FileInfo, GenerateRequest } from "./types";
+import { DocumentListItem, DocumentResponse, FileInfo, GenerateRequest } from "./types";
 
 // Next.js rewrites(/api/* → FastAPI)를 활용하여 상대경로 사용
 // NEXT_PUBLIC_API_URL은 직접 다운로드 URL 등 절대경로가 필요한 경우에만 사용
@@ -99,6 +99,16 @@ export async function generateDocumentStream(
       }
     }
   }
+}
+
+export async function fetchDocuments(limit = 20, offset = 0): Promise<DocumentListItem[]> {
+  const res = await authFetch(`/api/documents?limit=${limit}&offset=${offset}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  await authFetch(`/api/documents/${id}`, { method: "DELETE" });
 }
 
 export function getDownloadUrl(file_id: string): string {

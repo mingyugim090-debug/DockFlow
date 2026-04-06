@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     frontend_port: int = 3000
     debug: bool = False
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,https://dock-flow-ten.vercel.app"
 
     # ── n8n ──
     n8n_api_key: str = ""

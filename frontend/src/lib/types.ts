@@ -46,6 +46,16 @@ export interface RecentDocument {
   size_bytes: number;
 }
 
+export interface DocumentListItem {
+  id: string;
+  file_id: string;
+  filename: string;
+  format: string;
+  instruction?: string;
+  size_bytes: number;
+  created_at: string;
+}
+
 export interface Template {
   id: string;
   title: string;

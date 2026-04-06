@@ -7,6 +7,11 @@ const handler = NextAuth({
     KakaoProvider({
       clientId: process.env.KAKAO_CLIENT_ID || "",
       clientSecret: process.env.KAKAO_CLIENT_SECRET || "none",
+      authorization: {
+        params: {
+          scope: "profile_nickname profile_image",
+        },
+      },
     }),
   ],
   callbacks: {

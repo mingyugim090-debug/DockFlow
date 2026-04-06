@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import KakaoProvider from "next-auth/providers/kakao";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 const handler = NextAuth({
   providers: [
@@ -14,7 +14,7 @@ const handler = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "kakao") {
         try {
-          const { data, error } = await supabaseAdmin
+          const { data, error } = await getSupabaseAdmin()
             .from("users")
             .upsert(
               {

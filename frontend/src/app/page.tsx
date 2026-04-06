@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useSession, signIn } from 'next-auth/react';
+import Image from 'next/image';
 import {
   GitBranch,
   FileInput,
@@ -10,10 +12,11 @@ import {
   ChevronRight,
   Download,
   MoreHorizontal,
-  BarChart2,
 } from 'lucide-react';
 
 export default function Home() {
+  const { data: session } = useSession();
+
   const today = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
@@ -41,7 +44,42 @@ export default function Home() {
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
       {/* Welcome Section */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">안녕하세요 👋</h2>
+        {session?.user ? (
+          <div className="flex items-center gap-3 mb-2">
+            {session.user.image ? (
+              <Image
+                src={session.user.image}
+                alt={session.user.name || '프로필'}
+                width={44}
+                height={44}
+                className="rounded-full border-2 border-white shadow-sm"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg">
+                {session.user.name?.[0] ?? 'U'}
+              </div>
+            )}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                안녕하세요, {session.user.name ?? '사용자'}님 👋
+              </h2>
+              <p className="text-gray-400 text-xs mt-0.5">{session.user.email}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-2xl font-bold text-gray-900">안녕하세요 👋</h2>
+            <button
+              onClick={() => signIn('kakao')}
+              className="flex items-center gap-2 px-4 py-2 bg-[#FEE500] hover:bg-[#FDD800] text-black text-sm font-bold rounded-xl transition-colors shadow-sm"
+            >
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+                <path d="M12 3C6.477 3 2 6.545 2 10.92c0 2.808 1.83 5.253 4.606 6.536l-1.002 3.652c-.066.244.205.429.412.302l4.234-2.846c.563.084 1.147.128 1.75.128 5.523 0 10-3.545 10-7.92S17.523 3 12 3z"/>
+              </svg>
+              카카오로 시작하기
+            </button>
+          </div>
+        )}
         <p className="text-gray-500 mt-1 text-sm">오늘도 문서 업무를 AI에게 맡겨보세요.</p>
         <p className="text-gray-400 text-xs mt-0.5">{today}</p>
       </div>

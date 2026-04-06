@@ -1,0 +1,13 @@
+{
+  "name": "executive",
+  "bg": "#1a1a2e",
+  "surface": "#16213e",
+  "text_primary": "#eaeaf8",
+  "text_secondary": "rgba(234,234,248,0.6)",
+  "accent": "#e8c56d",
+  "accent_2": "#c084fc",
+  "border": "rgba(255,255,255,0.1)",
+  "font_head": "Cormorant Garamond, serif",
+  "font_body": "Noto Sans KR, sans-serif",
+  "font_import": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&family=Noto+Sans+KR:wght@300;400&display=swap"
+}

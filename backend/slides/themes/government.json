@@ -1,0 +1,13 @@
+{
+  "name": "government",
+  "bg": "#ffffff",
+  "surface": "#f8f9fa",
+  "text_primary": "#1a1a2e",
+  "text_secondary": "#555577",
+  "accent": "#003087",
+  "accent_2": "#c8102e",
+  "border": "rgba(0,0,0,0.1)",
+  "font_head": "Noto Sans KR, sans-serif",
+  "font_body": "Noto Sans KR, sans-serif",
+  "font_import": "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
+}

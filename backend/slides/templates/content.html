@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block extra_styles %}
+.content-slide {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  padding: 60px 80px;
+}
+.content-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.content-title {
+  font-family: var(--font-h);
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.15;
+  color: var(--text-1);
+  margin-bottom: 40px;
+}
+.content-title-line {
+  width: 48px; height: 3px;
+  background: var(--accent);
+  margin: 16px 0 32px;
+  border-radius: 2px;
+}
+.bullets {
+  display: flex; flex-direction: column; gap: 16px;
+  flex: 1;
+}
+.bullet-item {
+  display: flex; align-items: flex-start; gap: 16px;
+  font-size: 18px;
+  color: var(--text-1);
+  line-height: 1.6;
+}
+.bullet-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+.bullet-sub {
+  font-size: 14px;
+  color: var(--text-2);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+{% endblock %}
+{% block content %}
+<div class="content-slide">
+  {% if eyebrow %}<div class="content-eyebrow">{{ eyebrow }}</div>{% endif %}
+  <h2 class="content-title">{{ title }}</h2>
+  <div class="content-title-line"></div>
+  <div class="bullets">
+    {% for bullet in bullets %}
+    <div class="bullet-item">
+      <div class="bullet-dot"></div>
+      <div>
+        <div>{{ bullet.text }}</div>
+        {% if bullet.sub %}<div class="bullet-sub">{{ bullet.sub }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

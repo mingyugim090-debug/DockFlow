@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block extra_styles %}
+.two-col-slide {
+  width: 100%; height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+.two-col-header {
+  grid-column: 1 / -1;
+  padding: 48px 80px 32px;
+  border-bottom: 1px solid var(--border);
+}
+.two-col-title {
+  font-family: var(--font-h);
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--text-1);
+}
+.col-body {
+  padding: 36px 60px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.col-body:first-of-type { border-right: 1px solid var(--border); }
+.col-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.col-item {
+  font-size: 16px;
+  color: var(--text-1);
+  line-height: 1.6;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+}
+{% endblock %}
+{% block content %}
+<div class="two-col-slide">
+  <div class="two-col-header">
+    <h2 class="two-col-title">{{ title }}</h2>
+  </div>
+  <div class="col-body">
+    <div class="col-label">{{ left.label }}</div>
+    {% for item in left.items %}
+    <div class="col-item">{{ item }}</div>
+    {% endfor %}
+  </div>
+  <div class="col-body">
+    <div class="col-label">{{ right.label }}</div>
+    {% for item in right.items %}
+    <div class="col-item">{{ item }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

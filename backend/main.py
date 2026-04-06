@@ -47,11 +47,13 @@ from api.routes.health import router as health_router
 from api.routes.generate import router as generate_router
 from api.routes.files import router as files_router
 from api.routes.documents import router as documents_router
+from api.routes.slides import router as slides_router
 
 app.include_router(health_router)
 app.include_router(generate_router)
 app.include_router(files_router)
 app.include_router(documents_router)
+app.include_router(slides_router)
 
 
 @app.get("/")

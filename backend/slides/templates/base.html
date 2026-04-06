@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=1280"/>
+<title>{{ slide_title }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="{{ theme.font_import }}" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       {{ theme.bg }};
+    --surface:  {{ theme.surface }};
+    --text-1:   {{ theme.text_primary }};
+    --text-2:   {{ theme.text_secondary }};
+    --accent:   {{ theme.accent }};
+    --accent-2: {{ theme.accent_2 }};
+    --border:   {{ theme.border }};
+    --font-h:   {{ theme.font_head }};
+    --font-b:   {{ theme.font_body }};
+  }
+  html, body {
+    width: 1280px; height: 720px;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: var(--font-b);
+    -webkit-font-smoothing: antialiased;
+  }
+  .slide {
+    width: 1280px; height: 720px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  /* 슬라이드 번호 */
+  .slide-num {
+    position: absolute;
+    bottom: 24px; right: 32px;
+    font-size: 11px;
+    color: var(--text-2);
+    letter-spacing: 1px;
+    font-family: var(--font-b);
+  }
+  /* 로고 영역 */
+  .slide-logo {
+    position: absolute;
+    bottom: 20px; left: 32px;
+    font-size: 12px;
+    color: var(--text-2);
+    letter-spacing: 2px;
+    font-family: var(--font-h);
+  }
+  {% block extra_styles %}{% endblock %}
+</style>
+</head>
+<body>
+<div class="slide" id="slide-root">
+  {% block content %}{% endblock %}
+  <div class="slide-logo">{{ deck_title }}</div>
+  <div class="slide-num">{{ slide_index }} / {{ total_slides }}</div>
+</div>
+</body>
+</html>

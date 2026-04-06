@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# DocFlow AI — Pre-commit 검증 훅
+# 설치: ./scripts/install-hooks.sh
+#
+# 검사 항목:
+#   1. .env 파일 staged 여부 (비밀키 누출 방지)
+#   2. Frontend TypeScript 컴파일 (JSX 오류, 'use client' 관련)
+#   3. Backend Python 앱 임포트 테스트 (시작 시 크래시 방지)
+
+set -e
+
+# uv 명령어 찾기 (Windows PATH에 없을 수 있음)
+_find_uv() {
+  if command -v uv &>/dev/null; then
+    echo "uv"
+  else
+    # Windows 일반 설치 위치 탐색
+    local candidates=(
+      "$HOME/AppData/Local/Python/pythoncore-3.14-64/Scripts/uv.exe"
+      "$HOME/AppData/Local/Python/pythoncore-3.12-64/Scripts/uv.exe"
+      "$HOME/AppData/Roaming/Python/Scripts/uv.exe"
+      "$HOME/.cargo/bin/uv"
+      "$HOME/.local/bin/uv"
+    )
+    for c in "${candidates[@]}"; do
+      [ -x "$c" ] && echo "$c" && return
+    done
+    echo ""
+  fi
+}
+UV=$(_find_uv)
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+PASS="${GREEN}[PASS]${NC}"
+FAIL="${RED}[FAIL]${NC}"
+WARN="${YELLOW}[WARN]${NC}"
+INFO="${YELLOW}[INFO]${NC}"
+
+ERRORS=0
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  DocFlow AI — Pre-commit 검증"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ──────────────────────────────────────────
+# 검사 1: .env 파일 staged 여부
+# ──────────────────────────────────────────
+echo ""
+echo "[1/3] 비밀 파일 검사..."
+
+STAGED_SECRETS=$(git diff --cached --name-only | grep -E '(\.env$|\.env\.)' || true)
+if [ -n "$STAGED_SECRETS" ]; then
+  echo -e "$FAIL .env 파일이 staged 됩니다:"
+  echo "$STAGED_SECRETS" | sed 's/^/       /'
+  echo "       git restore --staged <파일> 로 제거하세요"
+  ERRORS=$((ERRORS + 1))
+else
+  echo -e "$PASS .env 파일 없음"
+fi
+
+# ──────────────────────────────────────────
+# 검사 2: Frontend TypeScript 컴파일
+# ──────────────────────────────────────────
+FRONTEND_STAGED=$(git diff --cached --name-only | grep '^frontend/' || true)
+
+echo ""
+echo "[2/3] Frontend TypeScript 컴파일..."
+
+if [ -n "$FRONTEND_STAGED" ]; then
+  cd "$REPO_ROOT/frontend"
+  if npx tsc --noEmit 2>&1; then
+    echo -e "$PASS TypeScript 컴파일 성공"
+  else
+    echo -e "$FAIL TypeScript 컴파일 실패"
+    echo "       위 오류를 수정한 후 다시 커밋하세요"
+    echo "       흔한 원인:"
+    echo "         - 'use client' 누락 (훅 사용 파일 첫 줄)"
+    echo "         - JSX 삼항 연산자 닫기 오류 )} vs }"
+    echo "         - import한 파일이 git에 없음 (git add 필요)"
+    ERRORS=$((ERRORS + 1))
+  fi
+  cd "$REPO_ROOT"
+else
+  echo -e "$INFO frontend/ 변경 없음 — 건너뜀"
+fi
+
+# ──────────────────────────────────────────
+# 검사 3: Backend Python 앱 임포트 테스트
+# ──────────────────────────────────────────
+BACKEND_STAGED=$(git diff --cached --name-only | grep '^backend/' || true)
+
+echo ""
+echo "[3/3] Backend Python 임포트 테스트..."
+
+if [ -n "$BACKEND_STAGED" ]; then
+  if [ -z "$UV" ]; then
+    echo -e "$WARN uv 명령어를 찾을 수 없습니다 — Backend 임포트 테스트 건너뜀"
+    echo "       PATH에 uv를 추가하거나 scripts/validate.sh 를 직접 실행하세요"
+  else
+    cd "$REPO_ROOT/backend"
+    if "$UV" run --no-sync python -c "from main import app; print('앱 임포트 OK')" 2>&1; then
+      echo -e "$PASS Backend 임포트 성공"
+    else
+      echo -e "$FAIL Backend 임포트 실패 — Railway healthcheck 실패 예상"
+      echo "       흔한 원인:"
+      echo "         - pyproject.toml에 없는 패키지를 최상위 import"
+      echo "         - 새 라우터를 main.py에 등록했으나 파일 누락"
+      echo "         - 문법 오류"
+      echo "       수정 후 다시 커밋하세요"
+      ERRORS=$((ERRORS + 1))
+    fi
+    cd "$REPO_ROOT"
+  fi
+else
+  echo -e "$INFO backend/ 변경 없음 — 건너뜀"
+fi
+
+# ──────────────────────────────────────────
+# 결과
+# ──────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$ERRORS" -gt 0 ]; then
+  echo -e "$FAIL 검증 실패: ${ERRORS}개 오류"
+  echo "       커밋이 차단됩니다. 오류를 수정하고 다시 시도하세요."
+  echo ""
+  exit 1
+else
+  echo -e "$PASS 모든 검증 통과 — 커밋 진행"
+  echo ""
+  exit 0
+fi

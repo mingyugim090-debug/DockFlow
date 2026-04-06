@@ -1,7 +1,6 @@
-'use client';
-
+import { useState } from 'react';
 import Link from 'next/link';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import {
   GitBranch,
@@ -12,10 +11,13 @@ import {
   ChevronRight,
   Download,
   MoreHorizontal,
+  Presentation,
 } from 'lucide-react';
+import GenerateModal from '@/components/slides/GenerateModal';
 
 export default function Home() {
   const { data: session } = useSession();
+  const [showSlideModal, setShowSlideModal] = useState(false);
 
   const today = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -41,7 +43,9 @@ export default function Home() {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto relative">
+      {showSlideModal && <GenerateModal onClose={() => setShowSlideModal(false)} />}
+      
       {/* Welcome Section */}
       <div className="mb-8">
         {session?.user ? (
@@ -67,18 +71,7 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-gray-900">안녕하세요 👋</h2>
-            <button
-              onClick={() => signIn('kakao')}
-              className="flex items-center gap-2 px-4 py-2 bg-[#FEE500] hover:bg-[#FDD800] text-black text-sm font-bold rounded-xl transition-colors shadow-sm"
-            >
-              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-                <path d="M12 3C6.477 3 2 6.545 2 10.92c0 2.808 1.83 5.253 4.606 6.536l-1.002 3.652c-.066.244.205.429.412.302l4.234-2.846c.563.084 1.147.128 1.75.128 5.523 0 10-3.545 10-7.92S17.523 3 12 3z"/>
-              </svg>
-              카카오로 시작하기
-            </button>
-          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">안녕하세요 👋</h2>
         )}
         <p className="text-gray-500 mt-1 text-sm">오늘도 문서 업무를 AI에게 맡겨보세요.</p>
         <p className="text-gray-400 text-xs mt-0.5">{today}</p>
@@ -87,17 +80,22 @@ export default function Home() {
       {/* Quick Action Cards */}
       <section className="mb-10">
         <div className="text-[11px] font-bold text-gray-400 tracking-widest uppercase mb-3">빠른 시작</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link href="/workflows" className="group gs-card p-5 flex flex-col gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <GitBranch size={20} className="text-indigo-600" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button 
+            onClick={() => setShowSlideModal(true)}
+            className="group text-left p-5 flex flex-col gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', border: '1px solid #c7d2fe', borderRadius: 14 }}
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mt-4 -mr-4"></div>
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <Presentation size={20} className="text-indigo-600" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 text-[15px]">워크플로우 만들기</h3>
-              <p className="text-gray-500 text-xs mt-1 leading-relaxed">공고 모니터링부터 문서 생성, 컨펌까지 자동화</p>
+              <h3 className="font-bold text-gray-900 text-[15px]">AI 프레젠테이션</h3>
+              <p className="text-gray-600 text-xs mt-1 leading-relaxed">아이디어 한 줄로 반응형 덱 생성 및 비주얼 편집기 동작</p>
             </div>
-            <span className="text-indigo-600 text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">시작하기 <ChevronRight size={14} /></span>
-          </Link>
+            <span className="text-indigo-600 text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all mt-1">에디터 열기 <ChevronRight size={14} /></span>
+          </button>
 
           <Link href="/convert" className="group gs-card p-5 flex flex-col gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -108,6 +106,17 @@ export default function Home() {
               <p className="text-gray-500 text-xs mt-1 leading-relaxed">사진, 엑셀, 메모 등 어떤 파일이든 PPT·Word·PDF로</p>
             </div>
             <span className="text-blue-600 text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">변환 시작 <ChevronRight size={14} /></span>
+          </Link>
+          
+          <Link href="/workflows" className="group gs-card p-5 flex flex-col gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+              <GitBranch size={20} className="text-slate-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-[15px]">자동화 워크플로우</h3>
+              <p className="text-gray-500 text-xs mt-1 leading-relaxed">공고 모니터링부터 문서 생성, 컨펌까지 묶음 자동화</p>
+            </div>
+            <span className="text-slate-600 text-xs font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">시작하기 <ChevronRight size={14} /></span>
           </Link>
         </div>
       </section>

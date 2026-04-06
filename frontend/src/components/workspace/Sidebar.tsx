@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
 import {
   Plus,
@@ -17,7 +17,6 @@ import {
   LayoutTemplate,
   CheckSquare,
   LogOut,
-  LogIn
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -152,14 +151,7 @@ export default function Sidebar() {
                   <LogOut size={15} />
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => signIn('kakao')}
-                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-gray-600 hover:bg-yellow-50 hover:text-gray-900 font-medium group transition-colors"
-              >
-                <LogIn size={18} className="text-gray-400 group-hover:text-yellow-500" />
-                <span className="text-[13px]">카카오로 시작하기</span>
-              </button>
+            ) : null
             )}
           </div>
         </div>

@@ -152,7 +152,7 @@ export default function Sidebar() {
                 </button>
               </div>
             ) : null
-            )}
+            }
           </div>
         </div>
       </aside>

@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  Plus, 
-  Home, 
+import { useSession, signIn, signOut } from 'next-auth/react';
+import Image from 'next/image';
+import {
+  Plus,
+  Home,
   Settings,
   HelpCircle,
   FolderOpen,
@@ -13,11 +15,14 @@ import {
   Calendar,
   FileInput,
   LayoutTemplate,
-  CheckSquare
+  CheckSquare,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
 
   const navigation = [
     {
@@ -110,6 +115,53 @@ export default function Sidebar() {
             <Settings size={18} className="text-gray-400 group-hover:text-gray-600" />
             <span className="text-[13px]">설정</span>
           </button>
+
+          {/* USER PROFILE */}
+          <div className="mt-2 border-t border-gray-100 pt-3">
+            {status === 'loading' ? (
+              <div className="flex items-center gap-3 px-3 py-2">
+                <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+                <div className="flex-1 h-3 bg-gray-200 rounded animate-pulse" />
+              </div>
+            ) : session?.user ? (
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 group">
+                <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0 ring-2 ring-white shadow-sm">
+                  {session.user.image ? (
+                    <Image
+                      src={session.user.image}
+                      alt={session.user.name || '프로필'}
+                      width={32}
+                      height={32}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white text-xs font-bold">
+                      {session.user.name?.[0] ?? 'U'}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-800 truncate">{session.user.name ?? '사용자'}</p>
+                  <p className="text-[11px] text-gray-400 truncate">{session.user.email ?? ''}</p>
+                </div>
+                <button
+                  onClick={() => signOut()}
+                  title="로그아웃"
+                  className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <LogOut size={15} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => signIn('kakao')}
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-gray-600 hover:bg-yellow-50 hover:text-gray-900 font-medium group transition-colors"
+              >
+                <LogIn size={18} className="text-gray-400 group-hover:text-yellow-500" />
+                <span className="text-[13px]">카카오로 시작하기</span>
+              </button>
+            )}
+          </div>
         </div>
       </aside>
 

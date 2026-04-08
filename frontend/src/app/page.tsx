@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
@@ -16,32 +16,49 @@ import {
   Presentation,
 } from 'lucide-react';
 import GenerateModal from '@/components/slides/GenerateModal';
+import { fetchDocuments, getDownloadUrl, getFormatBadgeColor, getFormatLabel } from '@/lib/api';
+import { DocumentListItem } from '@/lib/types';
+
+function formatRelativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return '방금 전';
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.floor(hr / 24);
+  if (day === 1) return '어제';
+  return `${day}일 전`;
+}
 
 export default function Home() {
   const { data: session } = useSession();
   const [showSlideModal, setShowSlideModal] = useState(false);
+  const [recentDocs, setRecentDocs] = useState<DocumentListItem[]>([]);
+  const [docCount, setDocCount] = useState<number | null>(null);
 
   const today = new Date().toLocaleDateString('ko-KR', {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
   });
 
+  useEffect(() => {
+    fetchDocuments(50).then((docs) => {
+      setDocCount(docs.length);
+      setRecentDocs(docs.slice(0, 3));
+    });
+  }, []);
+
   const stats = [
-    { icon: FileText, label: '생성 문서', value: '24개', change: '+8', positive: true },
-    { icon: GitBranch, label: '활성 워크플로우', value: '3개', change: '+1', positive: true },
-    { icon: CheckCircle, label: '완료 작업', value: '18건', change: '+5', positive: true },
-    { icon: Clock, label: '평균 생성시간', value: '1.8분', change: '-0.3분', positive: true },
+    { icon: FileText, label: '생성 문서', value: docCount !== null ? `${docCount}개` : '—', change: '', positive: true },
+    { icon: GitBranch, label: '활성 워크플로우', value: '준비 중', change: '', positive: true },
+    { icon: CheckCircle, label: '완료 작업', value: '준비 중', change: '', positive: true },
+    { icon: Clock, label: '평균 생성시간', value: '준비 중', change: '', positive: true },
   ];
 
   const workflows = [
     { name: '정부 R&D 공고 모니터링', meta: '5분 전 실행 · 자동', status: '진행중', statusColor: 'bg-amber-100 text-amber-700', dot: 'bg-amber-400 animate-pulse' },
     { name: '중기부 공모전 지원서 자동 작성', meta: '2시간 전 · 수동', status: '검토중', statusColor: 'bg-blue-100 text-blue-700', dot: 'bg-blue-400' },
     { name: '주간 매출 보고서 자동 생성', meta: '오늘 09:00', status: '완료', statusColor: 'bg-green-100 text-green-700', dot: 'bg-green-400' },
-  ];
-
-  const documents = [
-    { type: 'PPT', typeColor: 'bg-purple-100 text-purple-700', title: '2026 중소기업 디지털 전환 지원사업 지원서', time: '방금 전' },
-    { type: 'WORD', typeColor: 'bg-blue-100 text-blue-700', title: '스마트팩토리 구축 제안서', time: '1시간 전' },
-    { type: '분석', typeColor: 'bg-orange-100 text-orange-700', title: '과기부 R&D 공고 적합성 분석 보고서', time: '어제' },
   ];
 
   return (
@@ -177,20 +194,38 @@ export default function Home() {
           <div className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">최근 생성 문서</div>
           <Link href="/documents" className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">전체보기 <ChevronRight size={12} /></Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {documents.map((doc) => (
-            <div key={doc.title} className="gs-card p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group">
-              <div className="flex justify-between items-center mb-3">
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${doc.typeColor}`}>{doc.type}</span>
-                <span className="text-xs text-gray-400">{doc.time}</span>
+        {recentDocs.length === 0 ? (
+          <div className="gs-card p-8 flex flex-col items-center justify-center gap-2 text-gray-400">
+            <FileText size={28} className="text-gray-300" />
+            <p className="text-sm font-medium">아직 생성된 문서가 없습니다</p>
+            <p className="text-xs">위 버튼으로 첫 번째 문서를 만들어보세요.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {recentDocs.map((doc) => (
+              <div key={doc.id} className="gs-card p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group">
+                <div className="flex justify-between items-center mb-3">
+                  <span
+                    className="px-2 py-0.5 rounded text-[11px] font-bold text-white"
+                    style={{ backgroundColor: getFormatBadgeColor(doc.format) }}
+                  >
+                    {getFormatLabel(doc.format)}
+                  </span>
+                  <span className="text-xs text-gray-400">{formatRelativeTime(doc.created_at)}</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 mb-3">{doc.filename}</div>
+                <a
+                  href={getDownloadUrl(doc.file_id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600"
+                >
+                  <Download size={13} /> 다운로드
+                </a>
               </div>
-              <div className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 mb-3">{doc.title}</div>
-              <button className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600">
-                <Download size={13} /> 다운로드
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

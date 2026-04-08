@@ -67,7 +67,10 @@ export default function WorkflowsPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">워크플로우</h1>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-gray-900">워크플로우</h1>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">Beta</span>
+          </div>
           <p className="text-gray-500 text-sm mt-1">공고 수집부터 컨펌까지, 반복 문서 업무를 자동화합니다.</p>
         </div>
         <button onClick={() => { setActiveTab('new'); setWizardStep(1); }}

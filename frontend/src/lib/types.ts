@@ -65,3 +65,43 @@ export interface Template {
   prompt: string;
   badge: string;
 }
+
+export interface WorkflowStep {
+  label: string;
+  type: string;
+  color: string;
+}
+
+export interface WorkflowListItem {
+  id: string;
+  title: string;
+  description?: string;
+  purpose?: string;
+  trigger_type?: string;
+  steps: WorkflowStep[];
+  enabled: boolean;
+  status: string;
+  run_count: number;
+  success_count: number;
+  last_run_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowCreateRequest {
+  title: string;
+  description?: string;
+  purpose?: string;
+  trigger_type?: string;
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowUpdateRequest {
+  title?: string;
+  description?: string;
+  purpose?: string;
+  trigger_type?: string;
+  steps?: WorkflowStep[];
+  enabled?: boolean;
+  status?: string;
+}

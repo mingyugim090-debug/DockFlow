@@ -20,5 +20,8 @@ export const config = {
     "/workflows/:path*",
     "/approvals/:path*",
     "/schedule/:path*",
+    "/convert/:path*",
+    "/announcements/:path*",
+    "/slides/:path*",
   ],
 };

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
 
     # ── 인증 ──
-    require_auth: bool = False  # 개발 중 False, 운영 시 True
+    require_auth: bool = True  # 운영 기본값 True. 로컬은 .env에서 REQUIRE_AUTH=false
 
     def model_post_init(self, __context) -> None:
         """시작 시 필수 디렉토리 자동 생성"""

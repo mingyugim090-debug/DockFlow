@@ -1,7 +1,7 @@
 // DocFlow AI API 클라이언트
 
 import { getSession } from "next-auth/react";
-import { DocumentListItem, DocumentResponse, FileInfo, GenerateRequest } from "./types";
+import { DocumentListItem, DocumentResponse, FileInfo, GenerateRequest, WorkflowCreateRequest, WorkflowListItem, WorkflowUpdateRequest } from "./types";
 
 // Next.js rewrites(/api/* → FastAPI)를 활용하여 상대경로 사용
 // NEXT_PUBLIC_API_URL은 직접 다운로드 URL 등 절대경로가 필요한 경우에만 사용
@@ -24,7 +24,15 @@ async function authFetch(
     headers["X-User-Id"] = userId;
   }
 
-  return fetch(`${API_BASE}${url}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+
+  // 401: 세션 만료 또는 미인증 → 카카오 로그인 페이지로 이동
+  if (res.status === 401 && typeof window !== "undefined") {
+    const { signIn } = await import("next-auth/react");
+    signIn("kakao");
+  }
+
+  return res;
 }
 
 export async function generateDocument(
@@ -130,6 +138,42 @@ export function getFormatBadgeColor(format: string): string {
     contract: "#8b5cf6",
   };
   return map[format] || "#6b7280";
+}
+
+// ── Workflow API ──────────────────────────────────────────────
+
+export async function fetchWorkflows(): Promise<WorkflowListItem[]> {
+  const res = await authFetch("/api/workflows?limit=50");
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function createWorkflow(body: WorkflowCreateRequest): Promise<WorkflowListItem> {
+  const res = await authFetch("/api/workflows", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `서버 오류 (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function updateWorkflow(id: string, body: WorkflowUpdateRequest): Promise<WorkflowListItem> {
+  const res = await authFetch(`/api/workflows/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `서버 오류 (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteWorkflow(id: string): Promise<void> {
+  await authFetch(`/api/workflows/${id}`, { method: "DELETE" });
 }
 
 export function getFormatLabel(format: string): string {

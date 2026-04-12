@@ -56,6 +56,29 @@ class DocumentOrchestrator:
 
         logger.info("openai_agent_start", model=self.model_name, instruction=instruction[:80])
 
+        # ── RAG 컨텍스트 주입 ──
+        # upload_id가 있으면 관련 청크를 검색하여 context에 추가
+        if context and context.get("upload_id"):
+            try:
+                from rag.embedder import embed_single
+                from rag.store import search_similar
+
+                query_vector = await embed_single(instruction)
+                relevant_chunks = await search_similar(
+                    query_vector=query_vector,
+                    upload_id=context["upload_id"],
+                    top_k=5,
+                )
+                if relevant_chunks:
+                    context["retrieved_chunks"] = "\n\n---\n\n".join(relevant_chunks)
+                    logger.info(
+                        "rag_chunks_injected",
+                        upload_id=context["upload_id"],
+                        chunk_count=len(relevant_chunks),
+                    )
+            except Exception as exc:
+                logger.warning("rag_retrieval_failed", error=str(exc))
+
         for iteration in range(self.max_iterations):
             logger.info("agent_iteration", iteration=iteration + 1)
 

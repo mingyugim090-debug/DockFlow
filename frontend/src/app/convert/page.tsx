@@ -10,6 +10,8 @@ interface UploadResult {
   filename: string;
   size_bytes: number;
   extracted_text: string;
+  chunk_count: number;
+  rag_enabled: boolean;
 }
 
 const FORMAT_OPTIONS = [
@@ -100,9 +102,14 @@ export default function ConvertPage() {
       || (uploadResult ? `${uploadResult.filename} 파일의 내용을 바탕으로 문서를 만들어주세요.` : '문서를 만들어주세요.');
 
     const context: Record<string, string> = {};
-    if (uploadResult?.extracted_text) {
-      context.extracted_text = uploadResult.extracted_text;
+    if (uploadResult) {
+      // RAG 활성화 시 upload_id 전달 (orchestrator가 벡터 검색으로 관련 청크를 주입)
+      context.upload_id = uploadResult.upload_id;
       context.source_filename = uploadResult.filename;
+      // fallback: RAG 미사용 시 추출 텍스트 직접 전달
+      if (!uploadResult.rag_enabled && uploadResult.extracted_text) {
+        context.extracted_text = uploadResult.extracted_text;
+      }
     }
 
     try {
@@ -205,7 +212,10 @@ export default function ConvertPage() {
                 <CheckCircle2 size={36} className="mb-3 text-green-500" />
                 <p className="text-sm font-bold text-green-900">{uploadResult.filename}</p>
                 <p className="text-xs text-green-600 mt-1">
-                  {formatBytes(uploadResult.size_bytes)} · 텍스트 추출 완료
+                  {formatBytes(uploadResult.size_bytes)}
+                  {uploadResult.rag_enabled
+                    ? ` · ${uploadResult.chunk_count}개 청크로 분석 완료 (RAG ✓)`
+                    : ' · 텍스트 추출 완료'}
                 </p>
                 <p className="text-xs text-gray-400 mt-2">클릭하여 다른 파일 선택</p>
               </>

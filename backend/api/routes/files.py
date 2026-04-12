@@ -3,7 +3,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Header
 from fastapi.responses import FileResponse
 
 import structlog
@@ -33,8 +33,6 @@ def _extract_text(path: Path, filename: str, content: bytes) -> str:
                     row_text = " | ".join(str(c) for c in row if c is not None)
                     if row_text.strip():
                         rows.append(row_text)
-                    if len(rows) > 200:
-                        break
             return "\n".join(rows)
 
         elif ext == ".pptx":
@@ -48,6 +46,15 @@ def _extract_text(path: Path, filename: str, content: bytes) -> str:
                         texts.append(shape.text)
             return "\n".join(texts)
 
+        elif ext == ".pdf":
+            try:
+                from pypdf import PdfReader  # type: ignore
+                reader = PdfReader(path)
+                pages = [page.extract_text() or "" for page in reader.pages]
+                return "\n\n".join(p for p in pages if p.strip())
+            except ImportError:
+                return f"[PDF 업로드됨: {filename} — pypdf 미설치]"
+
         elif ext in (".txt", ".md", ".csv"):
             return content.decode("utf-8", errors="ignore")
 
@@ -57,6 +64,7 @@ def _extract_text(path: Path, filename: str, content: bytes) -> str:
     except Exception as exc:
         logger.warning("text_extraction_failed", filename=filename, error=str(exc))
         return f"[파일 업로드됨: {filename} — 텍스트 추출 불가]"
+
 
 # 확장자 → MIME 타입 매핑
 MIME_TYPES = {
@@ -68,11 +76,17 @@ MIME_TYPES = {
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """파일 업로드 및 텍스트 추출
+async def upload_file(
+    file: UploadFile = File(...),
+    x_user_id: str | None = Header(default=None),
+):
+    """파일 업로드 및 RAG 파이프라인 실행
 
-    업로드된 파일을 저장하고 텍스트 내용을 추출하여 반환합니다.
-    이후 /api/generate/async 호출 시 extracted_text를 context에 포함해 사용합니다.
+    1. 파일 저장 및 텍스트 추출
+    2. 텍스트를 청크로 분할 (800자 단위)
+    3. 각 청크를 OpenAI 임베딩으로 벡터화
+    4. Supabase document_chunks 테이블에 저장
+    5. 응답에 upload_id, chunk_count 포함
     """
     upload_id = str(uuid.uuid4())
     upload_dir = settings.upload_dir
@@ -84,17 +98,54 @@ async def upload_file(file: UploadFile = File(...)):
     content = await file.read()
     save_path.write_bytes(content)
 
+    # 텍스트 추출 (PDF 포함)
     extracted = _extract_text(save_path, safe_name, content)
-    # AI 컨텍스트 한도: 최대 4000자
-    extracted_trimmed = extracted[:4000]
 
-    logger.info("file_uploaded", upload_id=upload_id, filename=safe_name, size=len(content))
+    logger.info(
+        "file_uploaded",
+        upload_id=upload_id,
+        filename=safe_name,
+        size=len(content),
+        text_length=len(extracted),
+    )
+
+    # ── RAG 파이프라인 (비동기 — 실패해도 업로드는 성공 처리) ──
+    chunk_count = 0
+    rag_enabled = False
+
+    try:
+        from rag.chunker import chunk_text
+        from rag.embedder import embed_texts
+        from rag.store import save_chunks
+
+        chunks = chunk_text(extracted, chunk_size=800, overlap=100)
+        chunk_count = len(chunks)
+
+        if chunks:
+            vectors = await embed_texts(chunks)
+            await save_chunks(
+                upload_id=upload_id,
+                user_id=x_user_id,
+                chunks=chunks,
+                vectors=vectors,
+            )
+            rag_enabled = True
+            logger.info("rag_pipeline_done", upload_id=upload_id, chunk_count=chunk_count)
+
+    except Exception as exc:
+        # RAG 실패 시 fallback: 기존 방식으로 4000자 직접 제공
+        logger.warning("rag_pipeline_failed", upload_id=upload_id, error=str(exc))
+
+    # fallback: RAG 실패 시 기존 방식 호환
+    extracted_trimmed = extracted[:4000] if not rag_enabled else extracted[:500]
 
     return {
         "upload_id": upload_id,
         "filename": safe_name,
         "size_bytes": len(content),
         "extracted_text": extracted_trimmed,
+        "chunk_count": chunk_count,
+        "rag_enabled": rag_enabled,
     }
 
 
@@ -105,7 +156,6 @@ async def download_file(file_id: str):
     UUID 기반 파일 경로로 접근합니다.
     파일은 생성 후 1시간 뒤 자동 삭제됩니다.
     """
-    # 지원 확장자 탐색
     for ext in MIME_TYPES:
         file_path = settings.output_dir / f"{file_id}{ext}"
         if file_path.exists():

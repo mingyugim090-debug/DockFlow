@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
     "@tosspayments/payment-widget-sdk": "^0.12.1",
+    "@xyflow/react": "^12.10.2",
     "axios": "^1.14.0",
     "geist": "^1.7.0",
     "lucide-react": "^1.7.0",

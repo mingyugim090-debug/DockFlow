@@ -49,6 +49,8 @@ from api.routes.files import router as files_router
 from api.routes.documents import router as documents_router
 from api.routes.slides import router as slides_router
 from api.routes.workflows import router as workflows_router
+from api.routes.announcements import router as announcements_router
+from api.routes.approvals import router as approvals_router
 
 app.include_router(health_router)
 app.include_router(generate_router)
@@ -56,6 +58,8 @@ app.include_router(files_router)
 app.include_router(documents_router)
 app.include_router(slides_router)
 app.include_router(workflows_router)
+app.include_router(announcements_router)
+app.include_router(approvals_router)
 
 
 @app.get("/")

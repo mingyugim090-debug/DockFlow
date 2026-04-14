@@ -1,79 +1,130 @@
 'use client';
 
-import { useState } from 'react';
-import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ExternalLink, ChevronDown, ChevronUp, Loader2, Download, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
-type TabType = '전체' | '검토 대기' | '승인됨' | '반려됨';
+interface Announcement {
+  id: string;
+  title: string;
+  org: string;
+  fund: string;
+  score: number;
+  deadline: string | null;
+  source_url: string;
+}
 
-const cards = [
-  {
-    urgent: true,
-    status: '검토 대기', deadline: 'D-1',
-    workflow: 'AI 워크플로우 자동 생성',
-    title: '2026 창업진흥원 초기창업패키지 지원서 (3차)',
-    org: '창업진흥원', fund: '최대 1억원', score: 91,
-    docs: ['사업계획서 8p', '팀소개 2p', '재무계획 3p'],
-    summary: '사업 적합성 점수 91점. \'AI 기반 자동화\'가 핵심 선정 키워드와 일치. 재무계획 보완 권고.',
-    requestedAt: '2시간 전',
-  },
-  {
-    urgent: false,
-    status: '검토 대기', deadline: 'D-5',
-    workflow: '정부 R&D 공고 모니터링',
-    title: '과학기술정보통신부 R&D 사업화 지원 신청서',
-    org: '과기부', fund: '최대 5억원', score: 84,
-    docs: ['기술개발계획서 10p', '사업화전략 5p', '예산계획 4p'],
-    summary: '기술 독창성 항목 우수. 사업화 전략 구체성 추가 보완 필요. 전반적 완성도 높음.',
-    requestedAt: '5시간 전',
-  },
-  {
-    urgent: false,
-    status: '검토중', deadline: 'D-12',
-    workflow: '중소기업 지원사업 모니터링',
-    title: '중소기업 스마트공장 구축 지원사업 신청서',
-    org: '중기부', fund: '최대 3억원', score: 72,
-    docs: ['신청서 12p', '사업계획 6p'],
-    summary: '기술 부분 추가 정보 필요. 전반적인 구성은 완성도가 있으나 세부 조율이 필요합니다.',
-    requestedAt: '어제',
-  },
-];
+interface Approval {
+  id: string;
+  announcement_id: string;
+  status: string;
+  analysis_summary: string;
+  analysis_file_url: string;
+  generated_file_url: string;
+  created_at: string;
+  reviewed_at: string | null;
+  announcements: Announcement;
+}
 
-const completed = [
-  { title: '2025 혁신창업 패키지 사업계획서', result: '승인됨', resultColor: 'text-green-600 bg-green-50', date: '2026.03.25' },
-  { title: '과기부 AI 기반 제조혁신 R&D 신청서', result: '승인됨', resultColor: 'text-green-600 bg-green-50', date: '2026.03.20' },
-  { title: '중기부 수출 역량 강화 사업 신청서', result: '반려됨', resultColor: 'text-red-600 bg-red-50', date: '2026.03.15' },
-  { title: '2025 스마트시티 실증사업 신청서', result: '승인됨', resultColor: 'text-green-600 bg-green-50', date: '2026.03.10' },
-  { title: '창업진흥원 글로벌 도약 패키지', result: '승인됨', resultColor: 'text-green-600 bg-green-50', date: '2026.03.02' },
-];
+type TabType = '전체' | 'pending' | 'processing' | 'completed' | 'rejected';
+
+const TAB_LABELS: Record<TabType, string> = {
+  '전체': '전체',
+  pending: '검토 대기',
+  processing: '처리 중',
+  completed: '완료',
+  rejected: '반려',
+};
+
+const STATUS_BADGE: Record<string, { label: string; color: string }> = {
+  pending: { label: '검토 대기', color: 'text-amber-700 bg-amber-100' },
+  processing: { label: '처리 중', color: 'text-blue-700 bg-blue-100' },
+  completed: { label: '완료', color: 'text-green-700 bg-green-100' },
+  partial: { label: '부분 완료', color: 'text-yellow-700 bg-yellow-100' },
+  rejected: { label: '반려', color: 'text-red-700 bg-red-100' },
+  failed: { label: '실패', color: 'text-red-700 bg-red-100' },
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 1) return '방금 전';
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  return `${days}일 전`;
+}
 
 export default function ApprovalsPage() {
+  const [approvals, setApprovals] = useState<Approval[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('전체');
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
 
-  const tabs: TabType[] = ['전체', '검토 대기', '승인됨', '반려됨'];
+  const fetchApprovals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/approvals');
+      if (res.ok) {
+        const data = await res.json();
+        setApprovals(data.approvals || []);
+      }
+    } catch (e) {
+      console.error('Fetch approvals failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const filtered = cards.filter(c => {
+  useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
+
+  const handleApprove = async (id: string) => {
+    setActionId(id);
+    try {
+      const res = await fetch(`/api/approvals/${id}/approve`, { method: 'PATCH' });
+      if (res.ok) {
+        alert('승인되었습니다. AI가 분석 및 지원서 생성을 시작합니다.');
+        fetchApprovals();
+      } else {
+        const err = await res.json();
+        alert(err.detail || '승인 실패');
+      }
+    } catch { alert('승인 요청 실패'); }
+    finally { setActionId(null); }
+  };
+
+  const handleReject = async (id: string) => {
+    if (!confirm('정말 반려하시겠습니까?')) return;
+    setActionId(id);
+    try {
+      const res = await fetch(`/api/approvals/${id}/reject`, { method: 'PATCH' });
+      if (res.ok) { fetchApprovals(); }
+      else { const err = await res.json(); alert(err.detail || '반려 실패'); }
+    } catch { alert('반려 요청 실패'); }
+    finally { setActionId(null); }
+  };
+
+  const tabs: TabType[] = ['전체', 'pending', 'processing', 'completed', 'rejected'];
+
+  const filtered = approvals.filter(a => {
     if (activeTab === '전체') return true;
-    return c.status === activeTab;
+    return a.status === activeTab;
   });
+
+  const pendingCount = approvals.filter(a => a.status === 'pending').length;
+  const processingCount = approvals.filter(a => a.status === 'processing').length;
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-gray-900">컨펌 요청함</h1>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">Beta</span>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900">결재함</h1>
           <p className="text-gray-500 text-sm mt-1">AI가 생성한 문서 초안을 검토하고 승인하세요.</p>
         </div>
-        {/* Filter tabs */}
         <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
           {tabs.map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${activeTab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t}
+              {TAB_LABELS[t]}
             </button>
           ))}
         </div>
@@ -82,106 +133,146 @@ export default function ApprovalsPage() {
       {/* Summary Strip */}
       <div className="flex gap-4 mb-6">
         <div className="flex items-center gap-2 text-sm font-semibold text-amber-600">
-          <span className="w-2 h-2 rounded-full bg-amber-400" />대기중 3건
+          <span className="w-2 h-2 rounded-full bg-amber-400" />대기중 {pendingCount}건
         </div>
-        <div className="flex items-center gap-2 text-sm font-semibold text-red-500">
-          <span className="w-2 h-2 rounded-full bg-red-400" />오늘 마감 1건
+        <div className="flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <span className="w-2 h-2 rounded-full bg-blue-400" />처리중 {processingCount}건
         </div>
         <div className="flex items-center gap-2 text-sm font-semibold text-green-600">
-          <span className="w-2 h-2 rounded-full bg-green-400" />이번 주 완료 5건
+          <span className="w-2 h-2 rounded-full bg-green-400" />완료 {approvals.filter(a => a.status === 'completed').length}건
         </div>
       </div>
 
-      {/* Review Cards */}
-      <div className="flex flex-col gap-4 mb-6">
-        {filtered.map((card) => (
-          <div key={card.title}
-            className={`rounded-2xl border p-5 transition-all ${
-              card.urgent
-                ? 'border-l-4 border-l-red-400 bg-red-50/40 border-red-100'
-                : 'border-gray-200 bg-white'
-            } shadow-sm`}>
-            {/* Top Row */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                {card.urgent && <span className="text-xs font-bold text-red-500 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">⚡ 긴급 · 오늘 마감</span>}
-                <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">{card.status}</span>
-                <span className="text-xs text-gray-400">{card.workflow}</span>
-              </div>
-              <span className={`text-xs font-bold ${parseInt(card.deadline.replace('D-', '')) <= 7 ? 'text-amber-600 bg-amber-50' : 'text-gray-400 bg-gray-100'} px-2.5 py-1 rounded-full`}>
-                마감 {card.deadline}
-              </span>
-            </div>
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+          <Loader2 size={24} className="animate-spin" />
+          <span className="text-sm">승인 요청을 불러오는 중...</span>
+        </div>
+      )}
 
-            <h3 className="text-base font-bold text-gray-900 mb-1.5">{card.title}</h3>
-            
-            {/* Meta */}
-            <div className="flex gap-5 text-xs text-gray-400 mb-4">
-              <span>기관: {card.org}</span>
-              <span>사업비: {card.fund}</span>
-              <span>AI 적합도: <b className="text-indigo-600">{card.score}점</b></span>
-            </div>
+      {/* Empty */}
+      {!loading && filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-400">
+          <div className="text-5xl">📝</div>
+          <p className="text-sm font-medium">승인 요청이 없습니다.</p>
+          <p className="text-xs">공고 모니터링 페이지에서 "지원서 자동 생성"을 클릭해보세요.</p>
+        </div>
+      )}
 
-            {/* Doc Preview Strip */}
-            <div className="flex gap-3 mb-4">
-              {card.docs.map((doc) => (
-                <div key={doc} className="flex items-center justify-center bg-white border border-gray-200 rounded-lg px-4 py-3 text-xs text-gray-500 font-medium shadow-sm min-w-[100px]">
-                  {doc}
+      {/* Cards */}
+      {!loading && (
+        <div className="flex flex-col gap-4">
+          {filtered.map((approval) => {
+            const ann = approval.announcements;
+            const badge = STATUS_BADGE[approval.status] || STATUS_BADGE.pending;
+            const isProcessing = approval.status === 'processing';
+            const isPending = approval.status === 'pending';
+            const isComplete = approval.status === 'completed' || approval.status === 'partial';
+            const isBusy = actionId === approval.id;
+
+            return (
+              <div key={approval.id}
+                className={`rounded-2xl border p-5 transition-all ${
+                  isPending ? 'border-l-4 border-l-amber-400 border-amber-100 bg-amber-50/30'
+                    : isProcessing ? 'border-l-4 border-l-blue-400 border-blue-100 bg-blue-50/30'
+                    : 'border-gray-200 bg-white'
+                } shadow-sm`}>
+
+                {/* Top Row */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badge.color}`}>{badge.label}</span>
+                    {isProcessing && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                  </div>
+                  <span className="text-xs text-gray-400">{timeAgo(approval.created_at)}</span>
                 </div>
-              ))}
-            </div>
 
-            {/* AI Summary Box */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4">
-              <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">AI 분석 요약</div>
-              <p className="text-xs text-indigo-900 leading-relaxed">{card.summary}</p>
-            </div>
+                <h3 className="text-base font-bold text-gray-900 mb-1.5">{ann?.title || '공고 정보 없음'}</h3>
 
-            {/* Request Info */}
-            <div className="text-xs text-gray-400 mb-4">요청자: AI 자동화 시스템 · 요청 시각: {card.requestedAt}</div>
+                {/* Meta */}
+                <div className="flex gap-5 text-xs text-gray-400 mb-4">
+                  <span>기관: {ann?.org || '-'}</span>
+                  {ann?.fund && <span>사업비: {ann.fund}</span>}
+                  {ann?.score && <span>AI 적합도: <b className="text-indigo-600">{ann.score}점</b></span>}
+                  {ann?.deadline && <span>마감: {ann.deadline}</span>}
+                </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-              <div className="flex gap-4">
-                <button className="flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
-                  <ExternalLink size={13} /> 문서 검토
-                </button>
-                <button className="text-xs text-gray-400 font-medium hover:text-gray-600">상세 보기</button>
+                {/* AI Analysis Summary */}
+                {approval.analysis_summary && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4">
+                    <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">AI 분석 요약</div>
+                    <p className="text-xs text-indigo-900 leading-relaxed whitespace-pre-wrap">
+                      {approval.analysis_summary.slice(0, 500)}
+                      {approval.analysis_summary.length > 500 && '...'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Processing indicator */}
+                {isProcessing && (
+                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4">
+                    <Loader2 size={16} className="animate-spin text-blue-500" />
+                    <span className="text-xs text-blue-700 font-medium">AI가 공고를 분석하고 지원서를 작성 중입니다...</span>
+                  </div>
+                )}
+
+                {/* Download Buttons (completed) */}
+                {isComplete && (
+                  <div className="flex gap-3 mb-4">
+                    {approval.generated_file_url && (
+                      <a href={approval.generated_file_url} download
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                        <Download size={14} /> 지원서 다운로드
+                      </a>
+                    )}
+                    {approval.analysis_file_url && (
+                      <a href={approval.analysis_file_url} download
+                        className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-xs font-semibold text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+                        <Download size={14} /> 분석 보고서
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                  <div className="flex gap-4">
+                    {ann?.source_url && (
+                      <a href={ann.source_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-indigo-600 font-semibold hover:underline">
+                        <ExternalLink size={13} /> 공고 원문
+                      </a>
+                    )}
+                  </div>
+                  {isPending && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReject(approval.id)}
+                        disabled={isBusy}
+                        className="px-5 py-2 border border-red-200 text-red-500 text-xs font-bold rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        반려
+                      </button>
+                      <button
+                        onClick={() => handleApprove(approval.id)}
+                        disabled={isBusy}
+                        className="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        {isBusy ? '처리 중...' : '승인'}
+                      </button>
+                    </div>
+                  )}
+                  {isComplete && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 size={16} />
+                      <span className="text-xs font-bold">완료</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button className="px-5 py-2 border border-red-200 text-red-500 text-xs font-bold rounded-lg hover:bg-red-50 transition-colors">
-                  반려
-                </button>
-                <button className="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                  승인
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Completed Section (Collapsible) */}
-      <button onClick={() => setShowCompleted(!showCompleted)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-        <span>완료된 컨펌 ({completed.length}건)</span>
-        {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-      </button>
-
-      {showCompleted && (
-        <div className="border border-gray-200 border-t-0 rounded-b-xl overflow-hidden">
-          {completed.map((c, i) => (
-            <div key={i} className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 last:border-0 bg-white hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className={`text-sm ${c.result === '승인됨' ? '✓' : '✕'}`}>{c.result === '승인됨' ? '✅' : '❌'}</span>
-                <span className="text-sm text-gray-700 font-medium">{c.title}</span>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${c.resultColor}`}>{c.result}</span>
-                <span className="text-xs text-gray-400">{c.date}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     local_model_api_key: str = "ollama"
     local_model_temperature: float = 0.1
 
+    # ── 외부 API ──
+    bizinfo_api_key: str = ""  # 기업마당 공고 수집 인증키
+
     # ── 파일 저장 ──
     output_dir: Path = Path("./outputs")
     upload_dir: Path = Path("./uploads")

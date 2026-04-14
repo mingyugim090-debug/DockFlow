@@ -15,6 +15,9 @@ from slides.engine import (
 from slides.export import export_to_pdf, export_to_pptx
 from agent.orchestrator import DocumentOrchestrator
 from agent.tools.slide_tool import SLIDE_PLAN_TOOL, SLIDE_REWRITE_TOOL
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/slides", tags=["slides"])
 

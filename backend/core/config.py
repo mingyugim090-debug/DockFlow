@@ -1,6 +1,7 @@
 """환경변수 설정 — pydantic-settings 기반"""
 
 from pathlib import Path
+from typing import Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,9 +16,16 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     tavily_api_key: str = ""
 
-    # ── 모델 ──
+    # ── 클라우드 모델 ──
     default_model: str = "gpt-4o"
     fast_model: str = "gpt-4o-mini"
+
+    # ── 로컬 모델 (Ollama / gemma4) ──
+    local_model_enabled: bool = True
+    local_model_base_url: str = "http://localhost:11434/v1"
+    local_model_name: str = "gemma4:e4b"
+    local_model_api_key: str = "ollama"
+    local_model_temperature: float = 0.1
 
     # ── 파일 저장 ──
     output_dir: Path = Path("./outputs")
@@ -40,6 +48,17 @@ class Settings(BaseSettings):
 
     # ── 인증 ──
     require_auth: bool = True  # 운영 기본값 True. 로컬은 .env에서 REQUIRE_AUTH=false
+
+    @property
+    def local_model(self) -> dict[str, Any]:
+        """로컬 모델 설정을 딕셔너리로 반환한다."""
+        return {
+            "enabled": self.local_model_enabled,
+            "base_url": self.local_model_base_url,
+            "model": self.local_model_name,
+            "api_key": self.local_model_api_key,
+            "temperature": self.local_model_temperature,
+        }
 
     def model_post_init(self, __context) -> None:
         """시작 시 필수 디렉토리 자동 생성"""

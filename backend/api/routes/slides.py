@@ -102,7 +102,7 @@ async def generate_deck(req: GenerateRequest):
 
 @router.post("/generate/stream")
 async def generate_deck_stream(req: GenerateRequest):
-    """슬라이드 생성 진행률을 SSE로 실시간 전송"""
+    """슬라이드 생성 진행률을 SSE로 실시간 전송 (6단계 세분화)"""
 
     async def event_gen() -> AsyncGenerator[str, None]:
         def sse(data: dict) -> str:
@@ -111,7 +111,41 @@ async def generate_deck_stream(req: GenerateRequest):
         deck_id = str(uuid.uuid4())
         deck_path = create_deck(deck_id, _LOCAL_SLIDES_DIR)
 
-        yield sse({"type": "progress", "message": "AI가 슬라이드 구조를 설계하는 중...", "percent": 5})
+        # ── 1단계: 시작 ──
+        yield sse({"type": "stage", "stage": 1, "total_stages": 6,
+                   "message": "🔍 요청 분석 중...", "percent": 5})
+        await asyncio.sleep(0)
+
+        # ── 2단계: RAG 요약 (로컬 Gemma 사용) ──
+        rag_summary = ""
+        if req.context.get("upload_id") or req.context.get("retrieved_chunks"):
+            yield sse({"type": "stage", "stage": 2, "total_stages": 6,
+                       "message": "📄 참조 문서 분석 중... (Local AI)", "percent": 15,
+                       "model": "gemma4:e4b (local)"})
+            await asyncio.sleep(0)
+            try:
+                from agent.model_router import run_local, TaskType
+                raw_ctx = req.context.get("retrieved_chunks", req.context.get("extracted_text", ""))
+                if raw_ctx:
+                    rag_summary = await run_local(
+                        prompt=f"다음 문서의 핵심 내용을 3줄로 요약해줘:\n\n{raw_ctx[:3000]}",
+                        task=TaskType.SUMMARIZE,
+                        max_tokens=512,
+                    )
+                    if rag_summary:
+                        req.context["rag_summary"] = rag_summary
+                        logger.info("rag_summary_done", chars=len(rag_summary))
+            except Exception as exc:
+                logger.warning("rag_summary_skipped", error=str(exc))
+        else:
+            yield sse({"type": "stage", "stage": 2, "total_stages": 6,
+                       "message": "✅ 2단계 건너뜀 (첨부 파일 없음)", "percent": 15})
+            await asyncio.sleep(0)
+
+        # ── 3단계: AI 구조 설계 (클라우드) ──
+        yield sse({"type": "stage", "stage": 3, "total_stages": 6,
+                   "message": "🎨 슬라이드 구조 설계 중... (Cloud AI)", "percent": 20,
+                   "model": "gpt-4o (cloud)"})
         await asyncio.sleep(0)
 
         system_prompt = (
@@ -133,6 +167,7 @@ async def generate_deck_stream(req: GenerateRequest):
                 tools=[SLIDE_PLAN_TOOL],
                 system_prompt=system_prompt,
                 context=req.context,
+                task_type="slide_design",
             )
         except Exception as e:
             yield sse({"type": "error", "message": f"AI 호출 실패: {str(e)}"})
@@ -146,9 +181,12 @@ async def generate_deck_stream(req: GenerateRequest):
             yield sse({"type": "error", "message": "슬라이드 계획 수립에 실패했습니다."})
             return
 
-        yield sse({"type": "progress", "message": f"총 {total}장 구조 완성. 슬라이드 렌더링 시작...", "percent": 30})
+        # ── 4단계: 구조 확정 ──
+        yield sse({"type": "stage", "stage": 4, "total_stages": 6,
+                   "message": f"✅ {total}장 구조 확정. 렌더링 시작...", "percent": 35})
         await asyncio.sleep(0)
 
+        # ── 5단계: 슬라이드별 렌더링 ──
         generated = []
         for i, slide in enumerate(slides_data):
             html = render_slide(
@@ -165,24 +203,29 @@ async def generate_deck_stream(req: GenerateRequest):
                 "layout": slide["layout"],
                 "title": slide["title"],
             })
-            percent = 30 + int((i + 1) / total * 65)
+            percent = 35 + int((i + 1) / total * 55)
             yield sse({
                 "type": "slide_done",
+                "stage": 5,
                 "current": i + 1,
                 "total": total,
                 "title": slide["title"],
+                "layout": slide["layout"],
                 "percent": percent,
             })
             await asyncio.sleep(0)
 
+        # ── 6단계: 완료 ──
         yield sse({
             "type": "complete",
+            "stage": 6,
             "deck_id": deck_id,
             "deck_title": plan.get("deck_title", ""),
             "theme": req.theme,
             "slide_count": total,
             "slides": generated,
             "percent": 100,
+            "message": "🎉 프레젠테이션 완성!",
         })
 
     return StreamingResponse(

@@ -15,6 +15,10 @@ interface ProgressState {
   message: string;
   currentSlide: number;
   totalSlides: number;
+  stage: number;
+  totalStages: number;
+  modelHint?: string;
+  slideLayouts: string[];
 }
 
 export default function GenerateModal({ onClose }: GenerateModalProps) {
@@ -29,6 +33,9 @@ export default function GenerateModal({ onClose }: GenerateModalProps) {
     message: "준비 중...",
     currentSlide: 0,
     totalSlides: 0,
+    stage: 0,
+    totalStages: 6,
+    slideLayouts: [],
   });
 
   const THEMES = [
@@ -41,7 +48,7 @@ export default function GenerateModal({ onClose }: GenerateModalProps) {
   const handleGenerate = async () => {
     if (!topic.trim()) return;
     setPhase("generating");
-    setProgress({ percent: 0, message: "요청 전송 중...", currentSlide: 0, totalSlides: 0 });
+    setProgress({ percent: 0, message: "요청 전송 중...", currentSlide: 0, totalSlides: 0, stage: 0, totalStages: 6, slideLayouts: [] });
 
     try {
       const res = await fetch("/api/slides/generate/stream", {
@@ -71,23 +78,39 @@ export default function GenerateModal({ onClose }: GenerateModalProps) {
           try {
             const event = JSON.parse(part.slice(6));
 
-            if (event.type === "progress") {
+            if (event.type === "stage" || event.type === "progress") {
               setProgress(prev => ({
                 ...prev,
                 percent: event.percent,
                 message: event.message,
+                stage: event.stage ?? prev.stage,
+                totalStages: event.total_stages ?? prev.totalStages,
+                modelHint: event.model,
               }));
             } else if (event.type === "slide_done") {
-              setProgress({
+              setProgress(prev => ({
                 percent: event.percent,
                 message: `슬라이드 ${event.current}/${event.total} — ${event.title}`,
                 currentSlide: event.current,
                 totalSlides: event.total,
-              });
+                stage: event.stage ?? prev.stage,
+                totalStages: prev.totalStages,
+                modelHint: undefined,
+                slideLayouts: [...prev.slideLayouts, event.layout ?? "content"],
+              }));
             } else if (event.type === "complete") {
-              setProgress({ percent: 100, message: "완성!", currentSlide: event.slide_count, totalSlides: event.slide_count });
-              onClose();
-              router.push(`/slides/${event.deck_id}`);
+              setProgress(prev => ({
+                ...prev,
+                percent: 100,
+                message: event.message ?? "완성!",
+                currentSlide: event.slide_count,
+                totalSlides: event.slide_count,
+                stage: 6,
+              }));
+              setTimeout(() => {
+                onClose();
+                router.push(`/slides/${event.deck_id}`);
+              }, 600);
               return;
             } else if (event.type === "error") {
               throw new Error(event.message);
@@ -219,53 +242,100 @@ export default function GenerateModal({ onClose }: GenerateModalProps) {
 
         {/* ── 생성 중 프로그레스 ── */}
         {phase === "generating" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", minHeight: 20 }}>
-              {progress.message}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* 단계 표시 파이프 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {Array.from({ length: progress.totalStages }).map((_, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                  <div style={{
+                    flex: 1, height: 3, borderRadius: 999,
+                    background: i < progress.stage
+                      ? "linear-gradient(90deg, #8b5cf6, #3b82f6)"
+                      : i === progress.stage
+                        ? "rgba(139,92,246,0.5)"
+                        : "rgba(255,255,255,0.08)",
+                    transition: "background 0.4s",
+                  }} />
+                </div>
+              ))}
+            </div>
+
+            {/* 메시지 + 모델 힌트 */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", minHeight: 20, flex: 1 }}>
+                {progress.message}
+              </div>
+              {progress.modelHint && (
+                <div style={{
+                  fontSize: 10, fontWeight: 600, letterSpacing: 0.5,
+                  padding: "3px 8px", borderRadius: 6,
+                  background: progress.modelHint.includes("local")
+                    ? "rgba(34,197,94,0.15)" : "rgba(99,102,241,0.2)",
+                  color: progress.modelHint.includes("local") ? "#4ade80" : "#a5b4fc",
+                  border: `1px solid ${progress.modelHint.includes("local") ? "rgba(74,222,128,0.3)" : "rgba(165,180,252,0.3)"}`,
+                  whiteSpace: "nowrap",
+                }}>
+                  {progress.modelHint}
+                </div>
+              )}
             </div>
 
             {/* 프로그레스 바 */}
-            <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 999, height: 8, overflow: "hidden" }}>
+            <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 999, height: 6, overflow: "hidden" }}>
               <div
                 style={{
                   height: "100%",
                   width: `${progress.percent}%`,
                   background: "linear-gradient(90deg, #8b5cf6, #3b82f6)",
                   borderRadius: 999,
-                  transition: "width 0.4s ease",
+                  transition: "width 0.5s cubic-bezier(0.4,0,0.2,1)",
                 }}
               />
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
               <span>
                 {progress.totalSlides > 0
                   ? `${progress.currentSlide} / ${progress.totalSlides} 슬라이드`
-                  : "분석 중..."}
+                  : `${progress.stage} / ${progress.totalStages} 단계`}
               </span>
               <span>{progress.percent}%</span>
             </div>
 
-            {/* 슬라이드 완성 도트 */}
+            {/* 슬라이드 완성 도트 (레이아웃 뱃지 포함) */}
             {progress.totalSlides > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {Array.from({ length: progress.totalSlides }).map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: 10, height: 10, borderRadius: "50%",
-                      background: i < progress.currentSlide
-                        ? "linear-gradient(135deg, #8b5cf6, #3b82f6)"
-                        : "rgba(255,255,255,0.1)",
-                      transition: "background 0.3s",
-                    }}
-                  />
-                ))}
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {Array.from({ length: progress.totalSlides }).map((_, i) => {
+                  const isDone = i < progress.currentSlide;
+                  const isActive = i === progress.currentSlide;
+                  const layout = progress.slideLayouts[i];
+                  return (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                      <div style={{
+                        width: isDone ? 12 : 10,
+                        height: isDone ? 12 : 10,
+                        borderRadius: "50%",
+                        background: isDone
+                          ? "linear-gradient(135deg, #8b5cf6, #3b82f6)"
+                          : isActive
+                            ? "rgba(139,92,246,0.6)"
+                            : "rgba(255,255,255,0.08)",
+                        transition: "all 0.3s",
+                        boxShadow: isActive ? "0 0 8px rgba(139,92,246,0.6)" : "none",
+                      }} />
+                      {layout && (
+                        <div style={{ fontSize: 8, color: "rgba(255,255,255,0.25)", whiteSpace: "nowrap" }}>
+                          {layout.slice(0, 4)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 4 }}>
-              AI가 슬라이드를 한 장씩 생성 중입니다. 잠시만 기다려 주세요.
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 2 }}>
+              로컬 AI → 클라우드 AI 순으로 협력하여 최적의 프레젠테이션을 만듭니다.
             </p>
           </div>
         )}

@@ -11,15 +11,42 @@ from core.config import settings
 logger = structlog.get_logger(__name__)
 
 
+async def _scheduled_collect() -> None:
+    """스케줄러에서 실행: 기업마당 공고 자동 수집 (매일 오전 9시 KST)"""
+    if not settings.bizinfo_api_key:
+        logger.warning("scheduler_skip", reason="BIZINFO_API_KEY 미설정")
+        return
+    try:
+        from crawler.collector import collect_and_store
+        count = await collect_and_store(api_key=settings.bizinfo_api_key, count=50)
+        logger.info("scheduler_collect_done", saved=count)
+    except Exception as exc:
+        logger.error("scheduler_collect_failed", error=str(exc))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 라이프사이클 — 시작/종료 시 처리"""
+    # ── 자동 수집 스케줄러 시작 ──
+    scheduler = None
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        scheduler = AsyncIOScheduler(timezone="Asia/Seoul")
+        scheduler.add_job(_scheduled_collect, "cron", hour=9, minute=0, id="daily_collect")
+        scheduler.start()
+        logger.info("scheduler_started", job="daily_collect@09:00 KST")
+    except Exception as exc:
+        logger.warning("scheduler_start_failed", error=str(exc))
+
     logger.info(
         "docflow_api_starting",
         port=settings.backend_port,
         debug=settings.debug,
     )
     yield
+
+    if scheduler and scheduler.running:
+        scheduler.shutdown(wait=False)
     logger.info("docflow_api_shutting_down")
 
 

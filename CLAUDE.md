@@ -7,15 +7,23 @@
 
 ## 프로젝트 현황 (2026-04)
 
-**DocFlow AI** — LLM + Agent 기반 올인원 문서 자동화 SaaS.  
-카카오 로그인 + Supabase 사용자 관리 + AI 문서 생성(PPT·Word·Excel·PDF) + 슬라이드 에디터.
+**DocFlow AI** — 정부 공고 자동 수집 → AI 분석 → 지원서 자동 생성 + 범용 AI 문서 자동화 SaaS.  
+카카오 로그인 + Supabase 사용자 관리 + AI 문서 생성(PPT·Word·Excel·PDF) + 슬라이드 에디터 + 정부공고 파이프라인.
 
 | 레이어 | 서비스 | URL |
 |--------|--------|-----|
 | Frontend | Vercel | https://dock-flow-ten.vercel.app |
-| Backend | Railway | 환경변수 `RAILWAY_URL` 참조 |
+| Backend | Railway | 환경변수 `BACKEND_URL` 참조 |
 | Auth | NextAuth + KakaoProvider | |
 | DB | Supabase PostgreSQL | |
+| 공고 API | 기업마당(bizinfo.go.kr) | `.env` `BIZINFO_API_KEY` |
+
+### 핵심 플로우 (정부공고 파이프라인)
+```
+기업마당 API → 공고 수집 → AI 점수/요약 → 공고 모니터링 화면
+→ "지원서 자동 생성" 클릭 → 결재함 대기
+→ 승인 → AI 심층분석 + 지원서 DOCX → 다운로드
+```
 
 ---
 
@@ -49,23 +57,36 @@ Next.js 15 (App Router) · TypeScript · Tailwind CSS
 ```
 docflow-ai/
 ├── CLAUDE.md                    ← 이 파일 (루트 최우선)
+├── 인수인계.md                  ← 현재 개발 상태 + 다음 할 일
+├── supabase/migrations/         ← SQL 마이그레이션 (Supabase Dashboard에서 수동 실행)
+│   ├── pipeline_tables.sql      ← announcements + approval_requests 테이블
+│   ├── sprint5_workflows_rls.sql ← workflows 테이블 + RLS
+│   └── milestone2_rag_chunks.sql ← document_chunks 벡터 테이블
 ├── backend/
 │   ├── main.py                  ← FastAPI 앱 엔트리, 라우터 등록
 │   ├── Dockerfile               ← Railway 빌드
 │   ├── railway.toml             ← healthcheckPath=/health, timeout=60
 │   ├── pyproject.toml           ← uv 의존성 (여기만 추가)
-│   ├── core/config.py           ← 환경변수 (Settings 클래스)
+│   ├── core/config.py           ← 환경변수 (Settings 클래스, backend_url 포함)
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── health.py        ← GET /health
 │   │   │   ├── generate.py      ← POST /api/generate/async, GET /api/jobs/{id}
 │   │   │   ├── files.py         ← POST /api/upload, GET /api/files/{id}
 │   │   │   ├── documents.py     ← GET /api/documents, DELETE /api/documents/{id}
-│   │   │   └── slides.py        ← POST /slides/generate, PATCH /slides/...
+│   │   │   ├── slides.py        ← POST /slides/generate, PATCH /slides/...
+│   │   │   ├── workflows.py     ← /api/workflows CRUD
+│   │   │   ├── announcements.py ← 공고 수집/목록/승인요청
+│   │   │   └── approvals.py     ← 승인/반려/파이프라인 실행
 │   │   └── middleware/auth.py   ← get_current_user_id (X-User-Id 헤더)
 │   ├── agent/
 │   │   ├── orchestrator.py      ← OpenAI Tool Use 루프
-│   │   └── tools/               ← ppt_tool, excel_tool, pdf_tool, slide_tool
+│   │   ├── model_router.py      ← 로컬/클라우드 모델 라우팅
+│   │   └── tools/               ← ppt_tool, excel_tool, pdf_tool, slide_tool, search_tool
+│   ├── crawler/
+│   │   └── collector.py         ← 기업마당 API 공고 수집 + AI 점수/요약
+│   ├── pipeline/
+│   │   └── analyzer.py          ← 공고 심층분석 + 지원서 DOCX 생성
 │   ├── document/                ← ppt_engine, excel_engine, word_engine, pdf_engine
 │   ├── slides/
 │   │   ├── engine.py            ← jinja2 렌더링
@@ -74,8 +95,6 @@ docflow-ai/
 │   │   └── themes/              ← JSON 테마 파일
 │   ├── models/                  ← Pydantic 요청/응답 모델
 │   └── tests/
-│       ├── test_engines.py
-│       └── test_tools.py
 │
 └── frontend/
     ├── AGENTS.md                ← Next.js 에이전트 규칙 (이 파일도 읽을 것)
@@ -84,9 +103,12 @@ docflow-ai/
     │   ├── app/
     │   │   ├── layout.tsx       ← SessionProvider, Sidebar, Header 포함
     │   │   ├── page.tsx         ← 홈 대시보드 ('use client' 필수)
-    │   │   ├── convert/page.tsx ← 파일 변환 페이지
+    │   │   ├── announcements/   ← 공고 모니터링
+    │   │   ├── approvals/       ← 결재함 (승인/반려)
+    │   │   ├── workflows/       ← 워크플로우 관리
     │   │   ├── documents/       ← 내 문서 목록
     │   │   ├── slides/          ← AI 슬라이드 에디터
+    │   │   ├── convert/         ← 파일 변환
     │   │   └── api/auth/[...nextauth]/route.ts
     │   ├── components/
     │   │   ├── workspace/Sidebar.tsx
@@ -94,6 +116,7 @@ docflow-ai/
     │   │   └── slides/          ← GenerateModal, SlideEditor, SlidePanel
     │   ├── lib/
     │   │   ├── api.ts           ← fetch 래퍼 (X-User-Id 헤더 자동 주입)
+    │   │   ├── types.ts         ← 공통 TypeScript 타입
     │   │   └── supabase.ts      ← getSupabaseAdmin()
     │   └── middleware.ts        ← 인증 보호 라우트
 ```
@@ -220,9 +243,12 @@ NEXT_PUBLIC_BACKEND_URL=https://xxx.railway.app
 ### Backend (`backend/.env`)
 ```bash
 OPENAI_API_KEY=sk-...
+TAVILY_API_KEY=tvly-...
+BIZINFO_API_KEY=...              # 기업마당 오픈API 인증키
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...
-REQUIRE_AUTH=false   # 운영 시 true
+BACKEND_URL=https://xxx.railway.app  # 파일 다운로드 절대 URL 생성에 사용
+REQUIRE_AUTH=false               # 운영 시 true
 CORS_ORIGINS=http://localhost:3000,https://dock-flow-ten.vercel.app
 ```
 
@@ -252,12 +278,20 @@ cd backend && uv run ruff check . && uv run ruff format --check .
 
 ---
 
-## 다음 스프린트 방향 (Sprint 3+)
+## 완료된 스프린트
 
-- [ ] **Sprint 3**: Mock 페이지 실데이터 연결 (workflows, announcements, approvals, schedule)
-- [ ] **Sprint 4**: Workflow 빌더 UI (n8n 연동 or 자체 노드 에디터)
-- [ ] **Sprint 5**: Supabase `require_auth=true` 전환 + RLS 정책 적용
-- [ ] **Sprint 6**: 파일 스토리지 Cloudflare R2 연동
+- [x] **Sprint 1-2**: 인증(카카오+Supabase), 문서 생성(PPT/Excel/Word/PDF), 파일 업로드+RAG
+- [x] **Sprint 3**: Mock 페이지 실데이터 연결 (workflows, announcements, approvals)
+- [x] **Sprint 4**: 워크플로우 CRUD API + UI 실데이터 연결
+- [x] **Sprint 5**: Supabase `require_auth=true` + RLS 정책 적용
+- [x] **슬라이드 에디터**: AI 슬라이드 생성 + 비주얼 편집 + PDF/PPTX 내보내기
+
+## 다음 스프린트 방향
+
+- [ ] **Sprint 6**: 정부공고 파이프라인 버그 수정 (score fallback, 분석보고서 DOCX, 절대URL)
+- [ ] **Sprint 7**: 공고 자동 수집 스케줄러 + 분석 중 SSE 진행 표시
+- [ ] **Sprint 8**: 회사 프로필 설정 → 지원서 품질 개선
+- [ ] **Sprint 9**: Cloudflare R2 파일 스토리지 연동
 
 ---
 

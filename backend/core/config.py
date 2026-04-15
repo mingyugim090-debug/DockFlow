@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     frontend_port: int = 3000
     debug: bool = False
     cors_origins: str = "http://localhost:3000,https://dock-flow-ten.vercel.app"
+    backend_url: str = "http://localhost:8000"  # 파일 다운로드 절대 URL 생성에 사용. Railway: BACKEND_URL 환경변수로 주입
 
     # ── n8n ──
     n8n_api_key: str = ""

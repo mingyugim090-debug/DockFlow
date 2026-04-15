@@ -2,8 +2,9 @@
 
 승인된 공고에 대해:
 1. 공고 원문을 AI로 심층 분석 (핵심 요구사항, 평가 기준, 자격 요건 추출)
-2. 분석 결과를 토대로 지원서/사업계획서 DOCX 초안 자동 생성
-3. 생성된 파일을 Supabase에 기록
+2. 분석 결과를 DOCX 보고서로 저장
+3. 분석 결과를 토대로 지원서/사업계획서 DOCX 초안 자동 생성
+4. 생성된 파일 URL을 Supabase에 기록
 """
 
 from __future__ import annotations
@@ -14,14 +15,22 @@ from typing import Any
 
 import structlog
 
+from core.config import settings
+
 logger = structlog.get_logger(__name__)
 
 
-async def analyze_announcement(announcement: dict[str, Any]) -> str:
-    """공고 원문을 AI로 심층 분석한다.
+def _make_file_url(file_id: str) -> str:
+    """파일 다운로드 절대 URL을 생성한다."""
+    base = settings.backend_url.rstrip("/")
+    return f"{base}/api/files/{file_id}"
+
+
+async def analyze_announcement(announcement: dict[str, Any]) -> tuple[str, str]:
+    """공고 원문을 AI로 심층 분석하고 DOCX 보고서를 생성한다.
 
     Returns:
-        분석 결과 텍스트 (마크다운 형식)
+        (분석 결과 텍스트, 분석 보고서 DOCX 다운로드 URL)
     """
     title = announcement.get("title", "")
     org = announcement.get("org", "")
@@ -59,6 +68,8 @@ async def analyze_announcement(announcement: dict[str, Any]) -> str:
 (놓치기 쉬운 포인트)
 """
 
+    analysis_text = f"# {title} 분석\n\n자동 분석에 실패했습니다. 공고 원문을 직접 확인해주세요."
+
     try:
         from agent.orchestrator import DocumentOrchestrator
         orch = DocumentOrchestrator()
@@ -66,14 +77,45 @@ async def analyze_announcement(announcement: dict[str, Any]) -> str:
             instruction=prompt,
             task_type="document_draft",
         )
-        analysis = result.get("message", "")
-        if analysis:
-            logger.info("analysis_done", title=title[:40], chars=len(analysis))
-            return analysis
+        text = result.get("message", "")
+        if text:
+            logger.info("analysis_done", title=title[:40], chars=len(text))
+            analysis_text = text
     except Exception as exc:
         logger.error("analysis_failed", error=str(exc))
 
-    return f"# {title} 분석\n\n자동 분석에 실패했습니다. 공고 원문을 직접 확인해주세요."
+    # 분석 보고서를 DOCX로 저장
+    analysis_file_url = ""
+    try:
+        from document.word_engine import WordEngine
+        engine = WordEngine()
+        file_id = str(uuid.uuid4())
+        out_path = settings.output_dir / f"{file_id}.docx"
+
+        # 마크다운 텍스트를 Word 블록으로 변환
+        blocks: list[dict] = [{"type": "heading", "text": f"{title} — 분석 보고서", "level": 1}]
+        for line in analysis_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("## "):
+                blocks.append({"type": "heading", "text": line[3:], "level": 2})
+            elif line.startswith("- ") or line.startswith("• "):
+                blocks.append({"type": "list", "items": [line[2:]]})
+            else:
+                blocks.append({"type": "paragraph", "text": line})
+
+        engine.create(
+            title=f"{title} — 분석 보고서",
+            content_blocks=blocks,
+            output_path=out_path,
+        )
+        analysis_file_url = _make_file_url(file_id)
+        logger.info("analysis_docx_saved", file_id=file_id)
+    except Exception as exc:
+        logger.warning("analysis_docx_failed", error=str(exc))
+
+    return analysis_text, analysis_file_url
 
 
 async def generate_application(
@@ -83,7 +125,7 @@ async def generate_application(
     """분석 결과를 토대로 지원서 DOCX를 자동 생성한다.
 
     Returns:
-        {"file_id": str, "file_url": str, "message": str}
+        {"file_url": str, "message": str, "status": str}
     """
     title = announcement.get("title", "")
     org = announcement.get("org", "")
@@ -119,7 +161,12 @@ async def generate_application(
         file_url = ""
         if result.get("files"):
             file_info = result["files"][0]
-            file_url = file_info.get("download_url", "") if isinstance(file_info, dict) else str(file_info)
+            # download_url이 /api/files/{uuid} 형식이면 절대 URL로 변환
+            raw_url = file_info.get("download_url", "") if isinstance(file_info, dict) else str(file_info)
+            if raw_url.startswith("/"):
+                file_url = _make_file_url(raw_url.split("/")[-1])
+            else:
+                file_url = raw_url
 
         return {
             "file_url": file_url,
@@ -157,17 +204,17 @@ async def run_full_pipeline(announcement_id: str) -> dict[str, Any]:
 
     announcement = ann_resp.data
 
-    # 1단계: 분석
+    # 1단계: 분석 + 분석 보고서 DOCX 생성
     logger.info("pipeline_analyze_start", title=announcement["title"][:40])
-    analysis = await analyze_announcement(announcement)
+    analysis_text, analysis_file_url = await analyze_announcement(announcement)
 
     # 2단계: 지원서 생성
     logger.info("pipeline_generate_start", title=announcement["title"][:40])
-    gen_result = await generate_application(announcement, analysis)
+    gen_result = await generate_application(announcement, analysis_text)
 
     return {
-        "analysis_summary": analysis[:1000],
-        "analysis_file_url": "",  # TODO: 분석 보고서 DOCX 생성 시 URL
+        "analysis_summary": analysis_text[:1000],
+        "analysis_file_url": analysis_file_url,
         "generated_file_url": gen_result.get("file_url", ""),
         "status": "completed" if gen_result.get("status") == "success" else "partial",
         "message": gen_result.get("message", ""),

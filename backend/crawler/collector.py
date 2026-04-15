@@ -94,16 +94,13 @@ async def score_and_summarize(
 ) -> dict[str, Any]:
     """AI로 공고 적합도 점수와 요약을 생성한다.
 
-    로컬 Gemma 모델을 우선 사용하고, 실패 시 클라우드 fallback.
+    로컬 Gemma 모델을 우선 사용하고, 실패 시 GPT-4o-mini로 fallback.
     """
     title = announcement.get("title", "")
     raw = announcement.get("raw_content", "")
     text = f"제목: {title}\n내용: {raw[:2000]}" if raw else f"제목: {title}"
 
-    try:
-        from agent.model_router import run_local, TaskType
-
-        prompt = f"""다음 정부 지원사업 공고를 분석해줘.
+    prompt = f"""다음 정부 지원사업 공고를 분석해줘.
 
 {text}
 
@@ -113,15 +110,35 @@ async def score_and_summarize(
 요약: [1~2문장 핵심 요약]
 키워드: [쉼표로 구분된 3~5개 키워드]"""
 
+    # 1차: 로컬 Gemma 모델 시도
+    try:
+        from agent.model_router import run_local, TaskType
         result = await run_local(prompt=prompt, task=TaskType.CLASSIFY, max_tokens=256)
-
         if result:
             return _parse_ai_response(result, announcement)
-
     except Exception as exc:
-        logger.warning("ai_scoring_failed", error=str(exc))
+        logger.warning("local_model_scoring_failed", error=str(exc))
 
-    # fallback: 기본값
+    # 2차: GPT-4o-mini fallback
+    try:
+        from openai import AsyncOpenAI
+        from core.config import settings
+
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        resp = await client.chat.completions.create(
+            model=settings.fast_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=256,
+            temperature=0.1,
+        )
+        result = resp.choices[0].message.content or ""
+        if result:
+            logger.info("cloud_scoring_success", title=title[:40])
+            return _parse_ai_response(result, announcement)
+    except Exception as exc:
+        logger.warning("cloud_scoring_failed", error=str(exc))
+
+    # 최종 fallback: 기본값
     return {
         **announcement,
         "score": 50,

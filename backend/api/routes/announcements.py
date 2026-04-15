@@ -138,9 +138,19 @@ async def request_approval(announcement_id: str, body: RequestApprovalBody):
         raise HTTPException(status_code=409, detail="이미 처리 중인 승인 요청이 있습니다.")
 
     # 승인 요청 생성
+    import uuid
+    user_id = None
+    if body.user_id and body.user_id != "string":
+        try:
+            # 유효한 UUID인지 검사
+            uuid_obj = uuid.UUID(body.user_id)
+            user_id = str(uuid_obj)
+        except ValueError:
+            user_id = None
+
     row = {
         "announcement_id": announcement_id,
-        "user_id": body.user_id,
+        "user_id": user_id,
         "status": "pending",
     }
     result = client.table("approval_requests").insert(row).execute()

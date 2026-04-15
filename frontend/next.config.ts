@@ -17,8 +17,8 @@ const nextConfig: NextConfig = {
     const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
     return [
       {
-        source: "/api/((?!auth).*)",
-        destination: `${backendUrl}/api/:1`,
+        source: "/api/:path((?!auth).*)",
+        destination: `${backendUrl}/api/:path`,
       },
     ];
   },
